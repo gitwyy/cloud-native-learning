@@ -1,0 +1,42 @@
+# 开发环境覆盖配置
+# 此文件自动与 docker-compose.yml 合并
+
+services:
+  # 前端开发配置
+  frontend:
+    # volumes:
+    #   - ./frontend/public:/usr/share/nginx/html:ro  # 注释掉以使用构建版本
+    ports:
+      - "3000:80"
+
+  # 后端开发配置
+  backend:
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - RELOAD=true
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 数据库开发配置
+  database:
+    environment:
+      - POSTGRES_DB=todo_dev
+    ports:
+      - "5432:5432"
+
+  # Redis开发配置
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis123 --save 60 1
+
+  # Nginx开发配置
+  nginx:
+    ports:
+      - "80:80"

@@ -1,0 +1,215 @@
+# ==============================================================================
+# Docker Compose 模板文件
+# 完整的多服务应用编排配置
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # Web应用服务
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME:-myapp}-web"
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-myapp}
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - uploads:/app/uploads
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # 数据库服务 (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: "${PROJECT_NAME:-myapp}-db"
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_NAME:-myapp}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    networks:
+      - app-network
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-myapp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: "${PROJECT_NAME:-myapp}-redis"
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - app-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: "${PROJECT_NAME:-myapp}-nginx"
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+      - static_files:/var/www/static:ro
+    networks:
+      - app-network
+    depends_on:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 监控服务 (可选)
+  monitoring:
+    image: prom/prometheus:latest
+    container_name: "${PROJECT_NAME:-myapp}-prometheus"
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    networks:
+      - app-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  # 日志收集服务 (可选)
+  logging:
+    image: grafana/loki:latest
+    container_name: "${PROJECT_NAME:-myapp}-loki"
+    restart: unless-stopped
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki.yml:/etc/loki/local-config.yaml:ro
+    networks:
+      - app-network
+    command: -config.file=/etc/loki/local-config.yaml
+
+# 网络配置
+networks:
+  app-network:
+    driver: bridge
+    name: "${PROJECT_NAME:-myapp}-network"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+# 数据卷配置
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  
+  uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/uploads
+  
+  static_files:
+    driver: local
+  
+  prometheus_data:
+    driver: local
+  
+  loki_data:
+    driver: local
+
+# Docker Secrets (生产环境推荐)
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  ssl_cert:
+    file: ./secrets/ssl_cert.pem
+  ssl_key:
+    file: ./secrets/ssl_key.pem
+
+# ==============================================================================
+# 环境变量文件示例 (.env):
+# PROJECT_NAME=myapp
+# NODE_ENV=production
+# WEB_PORT=3000
+# DB_NAME=myapp
+# DB_USER=postgres
+# DB_PASSWORD=securepassword
+# REDIS_PASSWORD=redis123
+# SECRET_KEY=your-super-secret-key
+# ==============================================================================

@@ -1,0 +1,130 @@
+# ==============================================================================
+# Kubernetes ConfigMap 模板
+# 应用配置数据管理
+# ==============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-config
+  namespace: default
+  labels:
+    app: myapp
+data:
+  # 应用配置
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  MAX_CONNECTIONS: "100"
+  
+  # 数据库配置
+  redis-url: "redis://myapp-redis:6379/0"
+  
+  # 应用配置文件
+  app.properties: |
+    # 应用基础配置
+    app.name=myapp
+    app.version=1.0.0
+    app.debug=false
+    
+    # 服务器配置
+    server.port=3000
+    server.host=0.0.0.0
+    
+    # 日志配置
+    logging.level=info
+    logging.format=json
+    
+    # 缓存配置
+    cache.ttl=3600
+    cache.maxSize=1000
+  
+  # Nginx配置
+  nginx.conf: |
+    upstream backend {
+        server myapp-service:80;
+    }
+    
+    server {
+        listen 80;
+        server_name _;
+        
+        location / {
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        location /health {
+            proxy_pass http://backend/health;
+            access_log off;
+        }
+    }
+  
+  # 数据库迁移脚本
+  migration.sql: |
+    -- 创建用户表
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- 插入默认数据
+    INSERT INTO users (username, email) 
+    VALUES ('admin', 'admin@example.com')
+    ON CONFLICT (username) DO NOTHING;
+
+---
+# 应用特定配置 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-feature-flags
+  namespace: default
+  labels:
+    app: myapp
+    type: feature-flags
+data:
+  FEATURE_NEW_UI: "true"
+  FEATURE_ANALYTICS: "false"
+  FEATURE_CACHE: "true"
+  FEATURE_DEBUG_MODE: "false"
+
+---
+# 监控配置 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-monitoring
+  namespace: default
+  labels:
+    app: myapp
+    type: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+      - job_name: 'myapp'
+        static_configs:
+          - targets: ['myapp-service:3000']
+        metrics_path: /metrics
+        scrape_interval: 5s
+  
+  alerting-rules.yml: |
+    groups:
+    - name: myapp
+      rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} for the last 10 minutes"

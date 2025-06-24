@@ -1,0 +1,206 @@
+# ==============================================================================
+# Kubernetes Ingress 模板
+# HTTP/HTTPS路由和负载均衡
+# ==============================================================================
+
+# 基础 Ingress - HTTP
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-ingress
+  namespace: default
+  labels:
+    app: myapp
+  annotations:
+    # Nginx Ingress Controller 配置
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    
+    # 限流配置
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # CORS配置
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://yourdomain.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+spec:
+  # TLS配置
+  tls:
+  - hosts:
+    - myapp.example.com
+    - api.myapp.example.com
+    secretName: myapp-tls-secret
+  
+  rules:
+  # 主应用域名
+  - host: myapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-service
+            port:
+              number: 80
+  
+  # API域名
+  - host: api.myapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-service
+            port:
+              number: 80
+
+---
+# 高级 Ingress - 多路径路由
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-advanced-ingress
+  namespace: default
+  labels:
+    app: myapp
+  annotations:
+    # 高级路由配置
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      if ($host = 'old.myapp.com') {
+        return 301 https://myapp.example.com$request_uri;
+      }
+    
+    # 认证配置
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: myapp-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
+    
+    # 白名单IP
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    
+    # 自定义错误页面
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,503"
+    nginx.ingress.kubernetes.io/default-backend: myapp-error-service
+spec:
+  tls:
+  - hosts:
+    - myapp.example.com
+    secretName: myapp-tls-secret
+  
+  rules:
+  - host: myapp.example.com
+    http:
+      paths:
+      # 前端应用
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-frontend-service
+            port:
+              number: 80
+      
+      # API路由
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-backend-service
+            port:
+              number: 80
+      
+      # 静态文件
+      - path: /static
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-static-service
+            port:
+              number: 80
+      
+      # 管理后台
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-admin-service
+            port:
+              number: 80
+
+---
+# AWS ALB Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-alb-ingress
+  namespace: default
+  labels:
+    app: myapp
+  annotations:
+    # AWS Load Balancer Controller 配置
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/cert-id
+    alb.ingress.kubernetes.io/tags: Environment=production,Team=backend
+    
+    # 健康检查配置
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+spec:
+  rules:
+  - host: myapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-service
+            port:
+              number: 80
+
+---
+# GCP GKE Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-gce-ingress
+  namespace: default
+  labels:
+    app: myapp
+  annotations:
+    # Google Cloud Load Balancer 配置
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: myapp-ip
+    networking.gke.io/managed-certificates: myapp-ssl-cert
+    kubernetes.io/ingress.allow-http: "false"
+    
+    # 超时配置
+    cloud.google.com/backend-config: '{"default": "myapp-backend-config"}'
+spec:
+  rules:
+  - host: myapp.example.com
+    http:
+      paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: myapp-service
+            port:
+              number: 80

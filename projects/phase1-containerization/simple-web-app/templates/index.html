@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐳 简单Web应用容器化示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-card {
+            background: rgba(255,255,255,0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .info-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .info-card h2 {
+            color: #f1c40f;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            font-weight: 500;
+        }
+
+        .value {
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .api-section {
+            background: rgba(255,255,255,0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 2rem;
+        }
+
+        .api-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .api-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
+        }
+
+        .api-btn:hover {
+            background: #2980b9;
+        }
+
+        .response-area {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            opacity: 0.8;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐳 欢迎来到容器化世界</h1>
+            <p class="subtitle">这是一个运行在Docker容器中的Flask Web应用</p>
+        </header>
+
+        <div class="info-grid">
+            <div class="info-card fade-in-up">
+                <h2>📊 应用信息</h2>
+                <div class="info-item">
+                    <span class="label">应用框架:</span>
+                    <span class="value">Flask 2.3.3</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Python版本:</span>
+                    <span class="value" id="python-version">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">运行环境:</span>
+                    <span class="value">Docker容器</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Web服务器:</span>
+                    <span class="value">Gunicorn</span>
+                </div>
+            </div>
+
+            <div class="info-card fade-in-up" style="animation-delay: 0.2s;">
+                <h2>🏠 容器信息</h2>
+                <div class="info-item">
+                    <span class="label">主机名:</span>
+                    <span class="value" id="hostname">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">启动时间:</span>
+                    <span class="value" id="start-time">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">当前状态:</span>
+                    <span class="value" id="health-status">检查中...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-section fade-in-up" style="animation-delay: 0.4s;">
+            <h2>🔧 API测试</h2>
+            <p>点击下面的按钮测试不同的API端点：</p>
+            <div class="api-buttons">
+                <button class="api-btn" onclick="testAPI('/api/info')">获取系统信息</button>
+                <button class="api-btn" onclick="testAPI('/health')">健康检查</button>
+                <button class="api-btn" onclick="testAPI('/api/stats')">统计信息</button>
+            </div>
+            <div id="api-response" class="response-area" style="display: none;">
+                <div id="response-content"></div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>🚀 由Docker容器强力驱动 | 云原生学习项目第一阶段</p>
+        </footer>
+    </div>
+
+    <script>
+        // 页面加载时获取基本信息
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchBasicInfo();
+            updateStartTime();
+        });
+
+        async function fetchBasicInfo() {
+            try {
+                const response = await fetch('/api/info');
+                const data = await response.json();
+                
+                document.getElementById('python-version').textContent = data.python_version || '未知';
+                document.getElementById('hostname').textContent = data.hostname || '未知';
+                
+                // 检查健康状态
+                checkHealth();
+            } catch (error) {
+                console.error('获取基本信息失败:', error);
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                const statusEl = document.getElementById('health-status');
+                
+                if (data.status === 'healthy') {
+                    statusEl.textContent = '✅ 健康';
+                    statusEl.style.color = '#2ecc71';
+                } else {
+                    statusEl.textContent = '❌ 异常';
+                    statusEl.style.color = '#e74c3c';
+                }
+            } catch (error) {
+                document.getElementById('health-status').textContent = '❌ 检查失败';
+                document.getElementById('health-status').style.color = '#e74c3c';
+            }
+        }
+
+        function updateStartTime() {
+            const startTime = new Date().toLocaleString('zh-CN');
+            document.getElementById('start-time').textContent = startTime;
+        }
+
+        async function testAPI(endpoint) {
+            const responseArea = document.getElementById('api-response');
+            const responseContent = document.getElementById('response-content');
+            
+            responseArea.style.display = 'block';
+            responseContent.innerHTML = '<div class="loading"></div> 正在请求 ' + endpoint + '...';
+            
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                
+                responseContent.innerHTML = '<strong>请求URL:</strong> ' + endpoint + '<br><br>' +
+                    '<strong>响应状态:</strong> ' + response.status + '<br><br>' +
+                    '<strong>响应内容:</strong><br>' +
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                responseContent.innerHTML = '<strong>请求失败:</strong><br>' +
+                    '<pre style="color: #e74c3c;">' + error.message + '</pre>';
+            }
+        }
+
+        // 添加一些动态效果
+        setInterval(() => {
+            checkHealth();
+        }, 30000); // 每30秒检查一次健康状态
+    </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+# PostgreSQL数据库部署配置
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ecommerce-k8s
+  labels:
+    app: postgres
+    tier: infrastructure
+    component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        tier: infrastructure
+        component: database
+        version: "15"
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: database
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - ecommerce
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - ecommerce
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: init-scripts
+        configMap:
+          name: postgres-init-scripts
+          defaultMode: 0755
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: ecommerce-k8s
+  labels:
+    app: postgres
+    tier: infrastructure
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+    name: postgres
+    protocol: TCP
+  type: ClusterIP
+  sessionAffinity: None
+---
+# PostgreSQL初始化脚本配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: ecommerce-k8s
+  labels:
+    app: postgres
+    tier: infrastructure
+data:
+  001-create-databases.sql: |
+    -- 创建各微服务专用数据库
+    DO
+    $do$
+    BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'ecommerce_users') THEN
+          PERFORM dblink_exec('dbname=' || current_database(), 'CREATE DATABASE ecommerce_users');
+       END IF;
+       
+       IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'ecommerce_products') THEN
+          PERFORM dblink_exec('dbname=' || current_database(), 'CREATE DATABASE ecommerce_products');
+       END IF;
+       
+       IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'ecommerce_orders') THEN
+          PERFORM dblink_exec('dbname=' || current_database(), 'CREATE DATABASE ecommerce_orders');
+       END IF;
+       
+       IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'ecommerce_notifications') THEN
+          PERFORM dblink_exec('dbname=' || current_database(), 'CREATE DATABASE ecommerce_notifications');
+       END IF;
+    EXCEPTION
+       WHEN others THEN
+          -- 如果dblink不可用，使用简单的CREATE DATABASE
+          CREATE DATABASE IF NOT EXISTS ecommerce_users;
+          CREATE DATABASE IF NOT EXISTS ecommerce_products;
+          CREATE DATABASE IF NOT EXISTS ecommerce_orders;
+          CREATE DATABASE IF NOT EXISTS ecommerce_notifications;
+    END
+    $do$;
+    
+    -- 授权
+    GRANT ALL PRIVILEGES ON DATABASE ecommerce_users TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE ecommerce_products TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE ecommerce_orders TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE ecommerce_notifications TO postgres;
+  
+  002-init-extensions.sql: |
+    -- 在各数据库中创建必要的扩展
+    \c ecommerce_users;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    \c ecommerce_products;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+    
+    \c ecommerce_orders;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    
+    \c ecommerce_notifications;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

@@ -1,0 +1,74 @@
+// 颜色变量
+:root {
+  // 主色调
+  --primary-color: #409eff;
+  --primary-light: #53a8ff;
+  --primary-dark: #337ecc;
+  
+  // 辅助色
+  --success-color: #67c23a;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --info-color: #909399;
+  
+  // 中性色
+  --text-primary: #303133;
+  --text-regular: #606266;
+  --text-secondary: #909399;
+  --text-placeholder: #c0c4cc;
+  
+  // 边框色
+  --border-light: #ebeef5;
+  --border-lighter: #f2f6fc;
+  --border-extra-light: #fafcff;
+  
+  // 背景色
+  --bg-color: #ffffff;
+  --bg-color-page: #f2f3f5;
+  --bg-color-overlay: #ffffff;
+  
+  // 阴影
+  --shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  --shadow-base: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04);
+  --shadow-dark: 0 4px 8px rgba(0, 0, 0, 0.12), 0 0 12px rgba(0, 0, 0, 0.06);
+}
+
+// 深色主题
+[data-theme='dark'] {
+  --text-primary: #e5eaf3;
+  --text-regular: #cfd3dc;
+  --text-secondary: #a3a6ad;
+  --text-placeholder: #8d9095;
+  
+  --bg-color: #141414;
+  --bg-color-page: #0a0a0a;
+  --bg-color-overlay: #1d1e1f;
+  
+  --border-light: #2d2d2d;
+  --border-lighter: #262727;
+  --border-extra-light: #1d1d1d;
+}
+
+// 布局变量
+$header-height: 60px;
+$sidebar-width: 240px;
+$sidebar-collapsed-width: 64px;
+$footer-height: 50px;
+
+// 断点变量
+$mobile: 768px;
+$tablet: 992px;
+$desktop: 1200px;
+$widescreen: 1920px;
+
+// Z-index变量
+$z-navbar: 1000;
+$z-sidebar: 1001;
+$z-dropdown: 1002;
+$z-modal: 1003;
+$z-loading: 1004;
+$z-message: 1005;
+
+// 过渡动画
+$transition-duration: 0.3s;
+$transition-function: cubic-bezier(0.4, 0, 0.2, 1);

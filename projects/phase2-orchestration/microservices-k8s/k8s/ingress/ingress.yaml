@@ -1,0 +1,279 @@
+# Ingress控制器配置
+# 注意：需要先安装Ingress控制器，如nginx-ingress-controller
+
+# 主应用Ingress配置
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-ingress
+  namespace: ecommerce-k8s
+  labels:
+    app: ecommerce
+    tier: frontend
+  annotations:
+    # Nginx Ingress Controller配置
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # 限流配置
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # CORS配置
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    
+    # 健康检查
+    nginx.ingress.kubernetes.io/health-check-path: "/health"
+    nginx.ingress.kubernetes.io/health-check-interval: "30s"
+    
+    # 会话亲和性
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "ecommerce-session"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ecommerce.local
+    http:
+      paths:
+      # API网关路由
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # 健康检查路由
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # API路由
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # 静态文件路由
+      - path: /static
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # 上传文件路由
+      - path: /uploads
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+  
+  # TLS配置（可选）
+  # tls:
+  # - hosts:
+  #   - ecommerce.local
+  #   secretName: tls-secret
+---
+# 管理界面Ingress配置（可选）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-admin-ingress
+  namespace: ecommerce-k8s
+  labels:
+    app: ecommerce-admin
+    tier: management
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: admin-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Admin Area"
+    
+    # 限制访问IP（可选）
+    # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: admin.ecommerce.local
+    http:
+      paths:
+      # RabbitMQ管理界面
+      - path: /rabbitmq
+        pathType: Prefix
+        backend:
+          service:
+            name: rabbitmq-management
+            port:
+              number: 15672
+      
+      # 监控端点
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # 健康检查汇总
+      - path: /health-summary
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+---
+# 基本认证密钥（用于管理界面）
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-auth
+  namespace: ecommerce-k8s
+  labels:
+    purpose: admin-authentication
+type: Opaque
+data:
+  # admin:admin123 (使用htpasswd生成)
+  auth: YWRtaW46JGFwcjEkSDZ1c2g2Z1AkWFM1SzMzVDJRMzJQUUVUdTNIZjhkMQo=
+---
+# 开发环境Ingress配置（可选）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-dev-ingress
+  namespace: ecommerce-k8s
+  labels:
+    app: ecommerce-dev
+    tier: development
+    environment: development
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    
+    # 开发环境特殊配置
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Environment: development";
+      more_set_headers "X-Debug: true";
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: dev.ecommerce.local
+    http:
+      paths:
+      # 开发API路由
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      
+      # 直接访问微服务（开发调试用）
+      - path: /direct/user
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 80
+      
+      - path: /direct/product
+        pathType: Prefix
+        backend:
+          service:
+            name: product-service
+            port:
+              number: 80
+      
+      - path: /direct/order
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 80
+      
+      - path: /direct/notification
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 80
+---
+# Ingress网络策略
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-netpol
+  namespace: ecommerce-k8s
+  labels:
+    app: ingress
+    tier: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # 允许来自任何地方的HTTP/HTTPS流量
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  egress:
+  # 允许访问API网关
+  - to:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 80
+  # 允许访问管理服务
+  - to:
+    - podSelector:
+        matchLabels:
+          app: rabbitmq
+    ports:
+    - protocol: TCP
+      port: 15672
+  # 允许DNS查询
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

@@ -1,0 +1,171 @@
+services:
+  # 前端静态服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME:-todo}-frontend"
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Python FastAPI 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME:-todo}-backend"
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres123}@database:5432/${DB_NAME:-todo_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-jwt-key}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${NODE_ENV:-development}
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./logs/backend:/app/logs
+      - ./data/uploads:/app/uploads
+    networks:
+      - todo-network
+    depends_on:
+      database:
+        condition: service_started  # 改为started而不是healthy
+      redis:
+        condition: service_started  # 改为started而不是healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # 增加启动时间
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # PostgreSQL 数据库服务
+  database:
+    image: postgres:15-alpine
+    container_name: "${PROJECT_NAME:-todo}-database"
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_NAME:-todo_db}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    networks:
+      - todo-network
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-todo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: "${PROJECT_NAME:-todo}-redis"
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - todo-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "auth", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Nginx 反向代理（可选）
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME:-todo}-nginx"
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - todo-network
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    profiles:
+      - nginx  # 使用profile使nginx为可选服务
+
+# 网络配置
+networks:
+  todo-network:
+    driver: bridge
+    name: "${PROJECT_NAME:-todo}-network"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+# 数据卷配置
+volumes:
+  postgres_data:
+    driver: local
+    name: "${PROJECT_NAME:-todo}-postgres-data"
+  
+  redis_data:
+    driver: local
+    name: "${PROJECT_NAME:-todo}-redis-data"

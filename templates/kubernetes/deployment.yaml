@@ -1,0 +1,245 @@
+# ==============================================================================
+# Kubernetes Deployment 模板
+# 应用部署的核心配置
+# ==============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: default
+  labels:
+    app: myapp
+    version: v1.0.0
+    tier: backend
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v1.0.0
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # 安全上下文
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # 服务账户
+      serviceAccountName: myapp-service-account
+      
+      # 节点选择器
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      # 容忍度
+      tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "myapp"
+        effect: "NoSchedule"
+      
+      # 亲和性规则
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - myapp
+              topologyKey: kubernetes.io/hostname
+      
+      # Init容器
+      initContainers:
+      - name: init-db
+        image: busybox:1.36
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "等待数据库启动..."
+          until nslookup myapp-db.default.svc.cluster.local; do
+            echo "等待数据库服务..."
+            sleep 2
+          done
+          echo "数据库服务已就绪"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      containers:
+      - name: myapp
+        image: myapp:latest
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        
+        # 环境变量
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: myapp-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: myapp-config
+              key: redis-url
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        
+        # 从ConfigMap和Secret批量加载环境变量
+        envFrom:
+        - configMapRef:
+            name: myapp-config
+        - secretRef:
+            name: myapp-secrets
+        
+        # 资源限制和请求
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+            ephemeral-storage: "1Gi"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+            ephemeral-storage: "2Gi"
+        
+        # 健康检查
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        
+        # 启动探针
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        
+        # 数据卷挂载
+        volumeMounts:
+        - name: app-storage
+          mountPath: /app/data
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: secret-volume
+          mountPath: /app/secrets
+          readOnly: true
+        - name: temp-volume
+          mountPath: /tmp
+        - name: logs-volume
+          mountPath: /app/logs
+        
+        # 安全上下文
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+      
+      # 数据卷定义
+      volumes:
+      - name: app-storage
+        persistentVolumeClaim:
+          claimName: myapp-pvc
+      - name: config-volume
+        configMap:
+          name: myapp-config
+          defaultMode: 0644
+      - name: secret-volume
+        secret:
+          secretName: myapp-secrets
+          defaultMode: 0400
+      - name: temp-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: logs-volume
+        emptyDir:
+          sizeLimit: 2Gi
+      
+      # 镜像拉取密钥
+      imagePullSecrets:
+      - name: myapp-registry-secret
+      
+      # DNS配置
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+      
+      # 重启策略
+      restartPolicy: Always
+      
+      # 终止宽限期
+      terminationGracePeriodSeconds: 30

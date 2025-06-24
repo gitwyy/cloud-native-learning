@@ -1,0 +1,375 @@
+# ==============================================================================
+# 电商应用基础版 Docker Compose 配置
+# 包含四个微服务：用户管理、商品管理、订单服务、通知服务
+# 以及支持服务：PostgreSQL、Redis、RabbitMQ
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ==============================================================================
+  # 微服务
+  # ==============================================================================
+  
+  # 用户管理服务
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: "ecommerce-user-service"
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-ecommerce123}@postgres:5432/ecommerce_users
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+      - RABBITMQ_URL=amqp://admin:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      - JWT_SECRET_KEY=${JWT_SECRET:-user-service-secret-key}
+    env_file:
+      - .env
+    volumes:
+      - ./logs/user-service:/app/logs
+    networks:
+      - ecommerce-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # 商品管理服务
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: "ecommerce-product-service"
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-ecommerce123}@postgres:5432/ecommerce_products
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/1
+      - RABBITMQ_URL=amqp://admin:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    env_file:
+      - .env
+    volumes:
+      - ./logs/product-service:/app/logs
+      - ./data/product-images:/app/static/images
+    networks:
+      - ecommerce-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # 订单服务
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: "ecommerce-order-service"
+    restart: unless-stopped
+    ports:
+      - "5003:5003"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-ecommerce123}@postgres:5432/ecommerce_orders
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/2
+      - RABBITMQ_URL=amqp://admin:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      - USER_SERVICE_URL=http://user-service:5001
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+      - PAYMENT_GATEWAY_URL=${PAYMENT_GATEWAY_URL:-https://api.stripe.com}
+    env_file:
+      - .env
+    volumes:
+      - ./logs/order-service:/app/logs
+    networks:
+      - ecommerce-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # 通知服务
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: "ecommerce-notification-service"
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-ecommerce123}@postgres:5432/ecommerce_notifications
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/3
+      - RABBITMQ_URL=amqp://admin:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST:-smtp.gmail.com}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - SMS_API_KEY=${SMS_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - ./logs/notification-service:/app/logs
+    networks:
+      - ecommerce-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ==============================================================================
+  # 基础设施服务
+  # ==============================================================================
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: "ecommerce-postgres"
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=ecommerce
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-ecommerce123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./database/backups:/backups
+    networks:
+      - ecommerce-network
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: "ecommerce-redis"
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - ecommerce-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: "ecommerce-rabbitmq"
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmq123}
+      - RABBITMQ_DEFAULT_VHOST=/
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - ecommerce-network
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"      # AMQP端口
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672" # 管理界面端口
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # Nginx 反向代理和负载均衡
+  nginx:
+    image: nginx:alpine
+    container_name: "ecommerce-nginx"
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./logs/nginx:/var/log/nginx
+      - ./data/static:/var/www/static:ro
+    networks:
+      - ecommerce-network
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - notification-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+# ==============================================================================
+# 网络配置
+# ==============================================================================
+networks:
+  ecommerce-network:
+    driver: bridge
+    name: "ecommerce-network"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/16
+
+# ==============================================================================
+# 数据卷配置
+# ==============================================================================
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  
+  rabbitmq_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/rabbitmq
+
+# ==============================================================================
+# 使用说明：
+# 1. 复制 .env.example 到 .env 并配置环境变量
+# 2. 运行: docker-compose up -d
+# 3. 访问服务：
+#    - 用户服务：http://localhost:5001
+#    - 商品服务：http://localhost:5002
+#    - 订单服务：http://localhost:5003
+#    - 通知服务：http://localhost:5004
+#    - RabbitMQ管理界面：http://localhost:15672
+#    - 应用入口（通过Nginx）：http://localhost
+# ==============================================================================

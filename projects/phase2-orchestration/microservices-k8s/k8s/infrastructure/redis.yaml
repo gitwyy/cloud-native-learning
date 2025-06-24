@@ -1,0 +1,202 @@
+# Redis缓存服务部署配置
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: ecommerce-k8s
+  labels:
+    app: redis
+    tier: infrastructure
+    component: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        tier: infrastructure
+        component: cache
+        version: "7"
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        command:
+        - redis-server
+        args:
+        - /etc/redis/redis.conf
+        volumeMounts:
+        - name: redis-config
+          mountPath: /etc/redis
+        - name: redis-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - redis123
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - redis123
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: ecommerce-k8s
+  labels:
+    app: redis
+    tier: infrastructure
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+    protocol: TCP
+  type: ClusterIP
+  sessionAffinity: None
+---
+# Redis配置文件
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: ecommerce-k8s
+  labels:
+    app: redis
+    tier: infrastructure
+data:
+  redis.conf: |
+    # Redis配置文件 - Kubernetes部署版本
+    
+    # 基础配置
+    bind 0.0.0.0
+    port 6379
+    timeout 0
+    tcp-keepalive 300
+    
+    # 认证配置
+    requirepass redis123
+    
+    # 内存配置
+    maxmemory 200mb
+    maxmemory-policy allkeys-lru
+    
+    # 持久化配置
+    # RDB持久化
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+    
+    # AOF持久化
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    aof-load-truncated yes
+    
+    # 日志配置
+    loglevel notice
+    logfile ""
+    
+    # 客户端配置
+    timeout 0
+    tcp-keepalive 300
+    
+    # 网络配置
+    tcp-backlog 511
+    
+    # 安全配置
+    protected-mode no
+    
+    # 慢查询日志
+    slowlog-log-slower-than 10000
+    slowlog-max-len 128
+    
+    # 延迟监控
+    latency-monitor-threshold 100
+    
+    # 通知配置
+    notify-keyspace-events ""
+    
+    # 高级配置
+    hash-max-ziplist-entries 512
+    hash-max-ziplist-value 64
+    list-max-ziplist-size -2
+    list-compress-depth 0
+    set-max-intset-entries 512
+    zset-max-ziplist-entries 128
+    zset-max-ziplist-value 64
+    hll-sparse-max-bytes 3000
+    stream-node-max-bytes 4096
+    stream-node-max-entries 100
+    
+    # 活跃重哈希
+    activerehashing yes
+    
+    # 客户端输出缓冲区限制
+    client-output-buffer-limit normal 0 0 0
+    client-output-buffer-limit replica 256mb 64mb 60
+    client-output-buffer-limit pubsub 32mb 8mb 60
+    
+    # 客户端查询缓冲区限制
+    client-query-buffer-limit 1gb
+    
+    # 协议最大批量请求大小
+    proto-max-bulk-len 512mb
+    
+    # HZ频率
+    hz 10
+    
+    # 启用动态HZ
+    dynamic-hz yes
+    
+    # AOF重写增量fsync
+    aof-rewrite-incremental-fsync yes
+    
+    # RDB保存增量fsync
+    rdb-save-incremental-fsync yes

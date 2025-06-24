@@ -1,0 +1,32 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+metadata:
+  name: k8s-basics
+nodes:
+# 控制平面节点
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  # NodePort服务端口映射
+  - containerPort: 30080
+    hostPort: 8080
+    protocol: TCP
+  # Ingress Controller端口映射
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+# 工作节点
+- role: worker
+  labels:
+    node-type: worker
+- role: worker
+  labels:
+    node-type: worker

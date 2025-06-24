@@ -1,0 +1,67 @@
+# ==============================================================================
+# Nginx静态站点Dockerfile模板
+# 适用于前端应用部署
+# ==============================================================================
+
+# 构建阶段（可选，用于前端应用构建）
+FROM node:18-alpine AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制package文件
+COPY package*.json ./
+
+# 安装依赖
+RUN npm ci
+
+# 复制源代码
+COPY . .
+
+# 构建静态文件
+RUN npm run build
+
+# 生产阶段
+FROM nginx:alpine AS production
+
+# 设置标签信息
+LABEL maintainer="your-email@example.com" \
+      description="Static website with Nginx" \
+      version="1.0.0"
+
+# 删除默认的nginx配置和网站
+RUN rm -rf /etc/nginx/conf.d/default.conf /usr/share/nginx/html/*
+
+# 复制自定义nginx配置（可选）
+# COPY nginx.conf /etc/nginx/nginx.conf
+# COPY default.conf /etc/nginx/conf.d/default.conf
+
+# 从构建阶段复制静态文件
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 【或者】直接复制静态文件（如果不需要构建步骤）
+# COPY ./static /usr/share/nginx/html
+
+# 创建nginx用户（通常已存在）
+# RUN addgroup -g 101 -S nginx && adduser -S nginx -u 101 -G nginx
+
+# 设置正确的权限
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
+# 创建nginx运行需要的目录
+RUN mkdir -p /var/cache/nginx/client_temp && \
+    chown -R nginx:nginx /var/cache/nginx
+
+# 暴露端口
+EXPOSE 80 443
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+
+# 使用nginx用户运行（可选，默认nginx会自动切换）
+# USER nginx
+
+# 启动nginx
+CMD ["nginx", "-g", "daemon off;"]

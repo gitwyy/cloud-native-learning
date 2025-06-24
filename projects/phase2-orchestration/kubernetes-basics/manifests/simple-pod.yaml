@@ -1,0 +1,29 @@
+# 简单Pod示例 - 用于练习1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-nginx
+  labels:
+    app: nginx
+    environment: learning
+    exercise: basic-pod
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.25
+    ports:
+    - containerPort: 80
+      name: http
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    env:
+    - name: NGINX_HOST
+      value: "localhost"
+    - name: NGINX_PORT
+      value: "80"
+  restartPolicy: Always

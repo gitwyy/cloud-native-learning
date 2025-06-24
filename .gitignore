@@ -1,0 +1,137 @@
+# ==============================================================================
+# 云原生学习路线图项目 - Git 忽略文件
+# ==============================================================================
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+pnpm-debug.log*
+
+# 依赖目录
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+.hypothesis/
+
+# 环境变量和配置文件
+.env
+.env.local
+.env.*.local
+config.json
+secrets.json
+private.key
+
+# 编辑器和IDE文件
+.idea/
+.vscode/
+.taskmaster/
+.cursor/
+.roo/
+.windsurfrules
+.roomodes
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+.atom/
+.brackets.json
+*.sublime-project
+*.sublime-workspace
+
+# 操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.localized
+
+# 构建输出
+dist/
+build/
+*.egg-info/
+.pnpm-store
+target/
+out/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+data/
+backups/
+
+# 密钥和证书
+*.key
+*.pem
+*.crt
+*.cert
+secrets/
+ssl/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# 容器相关
+.dockerignore
+
+# Kubernetes 临时文件
+*.kubeconfig
+
+# 监控和日志
+prometheus/
+grafana/
+elasticsearch/
+
+# Task Master 相关文件
+tasks.json
+tasks/
+.taskmaster/
+
+# 测试覆盖率报告
+coverage/
+.nyc_output/
+lcov.info
+
+# 大文件和媒体文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+*.flac
+
+# 上传和存储目录
+uploads/
+storage/
+
+# ==============================================================================
+# 注意：此文件确保敏感信息和不必要的文件不会被提交到版本控制
+# ==============================================================================

@@ -1,0 +1,163 @@
+# ==============================================================================
+# Kubernetes Namespace 模板
+# 命名空间和资源隔离配置
+# ==============================================================================
+
+# 开发环境命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: development
+  labels:
+    name: development
+    environment: dev
+    team: backend
+    managed-by: kubectl
+  annotations:
+    description: "开发环境命名空间"
+    contact: "dev-team@example.com"
+    cost-center: "engineering"
+
+---
+# 测试环境命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    name: staging
+    environment: staging
+    team: backend
+    managed-by: kubectl
+  annotations:
+    description: "测试环境命名空间"
+    contact: "qa-team@example.com"
+    cost-center: "engineering"
+
+---
+# 生产环境命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    name: production
+    environment: prod
+    team: backend
+    managed-by: kubectl
+  annotations:
+    description: "生产环境命名空间"
+    contact: "ops-team@example.com"
+    cost-center: "production"
+
+---
+# 监控命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    purpose: observability
+    team: platform
+    managed-by: helm
+  annotations:
+    description: "监控和可观测性工具命名空间"
+    contact: "platform-team@example.com"
+    cost-center: "infrastructure"
+
+---
+# 日志命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
+  labels:
+    name: logging
+    purpose: log-aggregation
+    team: platform
+    managed-by: helm
+  annotations:
+    description: "日志收集和聚合命名空间"
+    contact: "platform-team@example.com"
+    cost-center: "infrastructure"
+
+---
+# 安全工具命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    name: security
+    purpose: security-tools
+    team: security
+    managed-by: kubectl
+  annotations:
+    description: "安全工具和扫描器命名空间"
+    contact: "security-team@example.com"
+    cost-center: "security"
+
+---
+# CI/CD命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cicd
+  labels:
+    name: cicd
+    purpose: continuous-integration
+    team: platform
+    managed-by: helm
+  annotations:
+    description: "持续集成和部署工具命名空间"
+    contact: "platform-team@example.com"
+    cost-center: "infrastructure"
+
+---
+# 数据库命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: databases
+  labels:
+    name: databases
+    purpose: data-storage
+    team: data
+    managed-by: operator
+  annotations:
+    description: "数据库和数据存储服务命名空间"
+    contact: "data-team@example.com"
+    cost-center: "infrastructure"
+
+---
+# 消息队列命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: messaging
+  labels:
+    name: messaging
+    purpose: message-queuing
+    team: platform
+    managed-by: helm
+  annotations:
+    description: "消息队列和事件流处理命名空间"
+    contact: "platform-team@example.com"
+    cost-center: "infrastructure"
+
+---
+# 缓存命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: caching
+  labels:
+    name: caching
+    purpose: caching-layer
+    team: platform
+    managed-by: operator
+  annotations:
+    description: "缓存服务命名空间"
+    contact: "platform-team@example.com"
+    cost-center: "infrastructure"

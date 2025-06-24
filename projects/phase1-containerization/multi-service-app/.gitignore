@@ -1,0 +1,57 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+logs/
+*.log
+
+# 数据文件
+data/
+backups/
+
+# 依赖目录
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 构建输出
+dist/
+build/
+*.egg-info/
+.pnpm-store
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker相关
+.dockerignore
+
+# SSL证书
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+
+# 临时文件
+*.tmp
+*.temp
