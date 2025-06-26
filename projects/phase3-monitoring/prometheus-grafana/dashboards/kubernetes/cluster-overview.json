@@ -1,0 +1,350 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Kubernetes Cluster Overview",
+    "tags": ["kubernetes", "cluster", "overview"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "cluster",
+          "type": "query",
+          "query": "label_values(up, cluster)",
+          "refresh": 1,
+          "includeAll": false,
+          "multi": false,
+          "allValue": null,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "datasource": "Prometheus"
+        },
+        {
+          "name": "node",
+          "type": "query",
+          "query": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true,
+          "allValue": null,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cluster Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "count(kube_node_info{cluster=\"$cluster\"})",
+            "legendFormat": "Total Nodes",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "displayMode": "basic",
+              "orientation": "horizontal"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Ready Nodes",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(kube_node_status_condition{cluster=\"$cluster\", condition=\"Ready\", status=\"true\"})",
+            "legendFormat": "Ready Nodes",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "green", "value": 2}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Total Pods",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(kube_pod_info{cluster=\"$cluster\"})",
+            "legendFormat": "Total Pods",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Running Pods",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", phase=\"Running\"})",
+            "legendFormat": "Running Pods",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage by Node",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{cluster=\"$cluster\", mode=\"idle\", instance=~\"$node\"}[5m])) * 100)",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {"type": "linear"},
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {"displayMode": "visible", "placement": "bottom"}
+        }
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage by Node",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "(1 - (node_memory_MemAvailable_bytes{cluster=\"$cluster\", instance=~\"$node\"} / node_memory_MemTotal_bytes{cluster=\"$cluster\", instance=~\"$node\"})) * 100",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {"type": "linear"},
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {"displayMode": "visible", "placement": "bottom"}
+        }
+      },
+      {
+        "id": 7,
+        "title": "Pod Status Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "sum by (phase) (kube_pod_status_phase{cluster=\"$cluster\"})",
+            "legendFormat": "{{phase}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+            },
+            "mappings": [],
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "pieType": "pie",
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {"displayMode": "visible", "placement": "right"},
+          "displayLabels": ["name", "value"]
+        }
+      },
+      {
+        "id": 8,
+        "title": "Network I/O",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 16, "x": 8, "y": 12},
+        "targets": [
+          {
+            "expr": "sum(rate(node_network_receive_bytes_total{cluster=\"$cluster\", instance=~\"$node\", device!=\"lo\"}[5m]))",
+            "legendFormat": "Receive",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(node_network_transmit_bytes_total{cluster=\"$cluster\", instance=~\"$node\", device!=\"lo\"}[5m]))",
+            "legendFormat": "Transmit",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {"type": "linear"},
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null}
+              ]
+            },
+            "unit": "Bps"
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single", "sort": "none"},
+          "legend": {"displayMode": "visible", "placement": "bottom"}
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

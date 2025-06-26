@@ -1,0 +1,14 @@
+# Demo App Python 依赖
+
+# Web 框架
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Prometheus 客户端
+prometheus-client==0.17.1
+
+# HTTP 客户端 (用于健康检查)
+requests==2.31.0
+
+# 其他工具
+gunicorn==21.2.0

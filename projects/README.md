@@ -111,3 +111,7 @@ projects/
 - [kubernetes-basics](./phase2-orchestration/kubernetes-basics)
 - [microservices-k8s](./phase2-orchestration/microservices-k8s)
 - [service-mesh-intro](./phase2-orchestration/service-mesh-intro)
+
+## 🚀 第三阶段进行中：监控实践
+正在进行监控体系的学习和实践：
+- [prometheus-grafana](./phase3-monitoring/prometheus-grafana) ✅ (已完成基础搭建)
