@@ -101,8 +101,8 @@ ssl/
 *.kubeconfig
 
 # 监控和日志
-prometheus/
-grafana/
+
+
 elasticsearch/
 
 # Task Master 相关文件

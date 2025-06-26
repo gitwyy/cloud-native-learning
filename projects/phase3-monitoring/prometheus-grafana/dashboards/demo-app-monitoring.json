@@ -1,0 +1,43 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Demo App Monitoring Dashboard",
+    "tags": ["demo", "application", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Business Operations Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(business_operations_total[5m])) by (operation_type)",
+            "legendFormat": "{{operation_type}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m])) by (endpoint)",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s",
+    "schemaVersion": 16,
+    "version": 0
+  }
+}

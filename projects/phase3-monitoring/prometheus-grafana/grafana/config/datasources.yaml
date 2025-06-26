@@ -1,0 +1,131 @@
+# Grafana 数据源配置
+# 定义 Prometheus 和其他数据源的连接配置
+
+apiVersion: 1
+
+# 删除现有数据源
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
+# 数据源配置
+datasources:
+  # 主要的 Prometheus 数据源
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    version: 1
+    jsonData:
+      # HTTP 方法配置
+      httpMethod: POST
+      # 查询超时设置
+      queryTimeout: 60s
+      # 时间间隔设置
+      timeInterval: 15s
+      # 启用范围查询
+      manageAlerts: false
+      # 自定义查询参数
+      customQueryParameters: ""
+      # 启用 exemplars
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+    secureJsonData: {}
+
+  # AlertManager 数据源 (可选)
+  - name: AlertManager
+    type: alertmanager
+    access: proxy
+    orgId: 1
+    url: http://alertmanager:9093
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false
+    secureJsonData: {}
+
+  # Jaeger 追踪数据源 (可选)
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    orgId: 1
+    uid: jaeger
+    url: http://jaeger-query:16686
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [
+          {
+            key: 'service.name',
+            value: 'service'
+          }
+        ]
+        mapTagNamesEnabled: false
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: false
+        filterBySpanID: false
+    secureJsonData: {}
+
+  # Loki 日志数据源 (可选)
+  - name: Loki
+    type: loki
+    access: proxy
+    orgId: 1
+    uid: loki
+    url: http://loki:3100
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+    secureJsonData: {}
+
+  # Node Exporter 专用数据源 (可选)
+  - name: Node Exporter
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 15s
+      # 专门用于节点监控的查询
+      customQueryParameters: "job=node-exporter"
+    secureJsonData: {}
+
+  # 应用监控专用数据源 (可选)
+  - name: Application Metrics
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 15s
+      # 专门用于应用监控的查询
+      customQueryParameters: "job=~\"kubernetes-pods|kubernetes-services\""
+    secureJsonData: {}

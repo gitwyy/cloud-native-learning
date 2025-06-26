@@ -1,0 +1,258 @@
+# Grafana 部署清单
+# 包含 Deployment、Service、ConfigMap 和持久化存储配置
+
+---
+# Grafana 配置 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+
+    [grafana_net]
+    url = https://grafana.net
+
+    [log]
+    mode = console
+
+    [paths]
+    data = /var/lib/grafana/
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+
+    [server]
+    root_url = http://localhost:3000/
+
+    [security]
+    admin_user = admin
+    admin_password = admin123
+    allow_embedding = false
+    cookie_secure = false
+    cookie_samesite = lax
+
+    [users]
+    allow_sign_up = false
+    allow_org_create = false
+    auto_assign_org = true
+    auto_assign_org_role = Viewer
+    default_theme = dark
+
+    [auth]
+    disable_login_form = false
+    disable_signout_menu = false
+
+    [auth.anonymous]
+    enabled = false
+
+    [alerting]
+    enabled = false
+
+    [unified_alerting]
+    enabled = true
+
+    [feature_toggles]
+    enable = ngalert
+
+---
+# Grafana 数据源配置 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        orgId: 1
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+        jsonData:
+          httpMethod: POST
+          queryTimeout: 60s
+          timeInterval: 15s
+
+---
+# Grafana 仪表板提供者配置 ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-providers
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+# Grafana 管理员密码 Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin-secret
+  namespace: monitoring
+  labels:
+    app: grafana
+type: Opaque
+data:
+  password: YWRtaW4xMjM=  # admin123 的 base64 编码
+
+---
+
+# Grafana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsNonRoot: true
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin123"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 60
+            timeoutSeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+            - name: datasources-volume
+              mountPath: /etc/grafana/provisioning/datasources/
+            - name: dashboard-providers-volume
+              mountPath: /etc/grafana/provisioning/dashboards/
+            - name: storage-volume
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: config-volume
+          configMap:
+            name: grafana-config
+        - name: datasources-volume
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-providers-volume
+          configMap:
+            name: grafana-dashboard-providers
+        - name: storage-volume
+          emptyDir: {}
+
+---
+# Grafana Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: grafana
+
+---
+# Grafana Ingress (可选)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/auth-type: basic
+    # nginx.ingress.kubernetes.io/auth-secret: grafana-basic-auth
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

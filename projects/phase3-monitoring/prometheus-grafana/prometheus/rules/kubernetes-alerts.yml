@@ -1,0 +1,252 @@
+# Kubernetes 集群告警规则
+# 监控 Kubernetes 集群的健康状态和资源使用情况
+
+groups:
+  # 节点相关告警
+  - name: kubernetes-nodes
+    interval: 30s
+    rules:
+      # 节点不可用告警
+      - alert: KubernetesNodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Kubernetes node {{ $labels.node }} is not ready"
+          description: "Node {{ $labels.node }} has been not ready for more than 5 minutes. This may indicate a serious issue with the node."
+          runbook_url: "https://runbooks.example.com/kubernetes/node-not-ready"
+
+      # 节点内存使用率过高
+      - alert: KubernetesNodeMemoryPressure
+        expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Kubernetes node {{ $labels.node }} is under memory pressure"
+          description: "Node {{ $labels.node }} is experiencing memory pressure. Consider adding more memory or reducing workload."
+
+      # 节点磁盘压力
+      - alert: KubernetesNodeDiskPressure
+        expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Kubernetes node {{ $labels.node }} is under disk pressure"
+          description: "Node {{ $labels.node }} is experiencing disk pressure. Consider cleaning up disk space or adding more storage."
+
+      # 节点 CPU 使用率过高
+      - alert: KubernetesNodeHighCPUUsage
+        expr: (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High CPU usage on node {{ $labels.instance }}"
+          description: "CPU usage on node {{ $labels.instance }} is above 80% for more than 5 minutes. Current usage: {{ $value }}%"
+
+      # 节点内存使用率过高
+      - alert: KubernetesNodeHighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High memory usage on node {{ $labels.instance }}"
+          description: "Memory usage on node {{ $labels.instance }} is above 85% for more than 5 minutes. Current usage: {{ $value }}%"
+
+      # 节点磁盘使用率过高
+      - alert: KubernetesNodeHighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "High disk usage on node {{ $labels.instance }}"
+          description: "Disk usage on {{ $labels.instance }}:{{ $labels.mountpoint }} is above 85%. Current usage: {{ $value }}%"
+
+  # Pod 相关告警
+  - name: kubernetes-pods
+    interval: 30s
+    rules:
+      # Pod 频繁重启
+      - alert: KubernetesPodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is restarting frequently. Restart rate: {{ $value }} restarts/second"
+
+      # Pod 处于 Pending 状态过久
+      - alert: KubernetesPodPending
+        expr: kube_pod_status_phase{phase="Pending"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          category: scheduling
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is pending"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in pending state for more than 10 minutes"
+
+      # Pod 处于 Failed 状态
+      - alert: KubernetesPodFailed
+        expr: kube_pod_status_phase{phase="Failed"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} failed"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is in failed state"
+
+      # 容器 OOMKilled
+      - alert: KubernetesContainerOOMKilled
+        expr: increase(kube_pod_container_status_restarts_total[1h]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        for: 0m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} was OOMKilled"
+          description: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} was killed due to out of memory"
+
+  # Deployment 相关告警
+  - name: kubernetes-deployments
+    interval: 30s
+    rules:
+      # Deployment 副本数不匹配
+      - alert: KubernetesDeploymentReplicasMismatch
+        expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+          description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $labels.spec_replicas }} desired replicas but only {{ $labels.available_replicas }} are available"
+
+      # Deployment 滚动更新卡住
+      - alert: KubernetesDeploymentRolloutStuck
+        expr: kube_deployment_status_condition{condition="Progressing", status="false"} == 1
+        for: 10m
+        labels:
+          severity: critical
+          category: deployment
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is stuck"
+          description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout has been stuck for more than 10 minutes"
+
+  # 存储相关告警
+  - name: kubernetes-storage
+    interval: 30s
+    rules:
+      # PVC 处于 Pending 状态
+      - alert: KubernetesPersistentVolumeClaimPending
+        expr: kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is pending"
+          description: "PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been pending for more than 5 minutes"
+
+      # PV 使用率过高
+      - alert: KubernetesPersistentVolumeUsageHigh
+        expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "PV usage high for {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}"
+          description: "Persistent Volume usage for {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is above 85%. Current usage: {{ $value }}%"
+
+  # API Server 相关告警
+  - name: kubernetes-apiserver
+    interval: 30s
+    rules:
+      # API Server 请求延迟过高
+      - alert: KubernetesAPIServerLatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{subresource!="log",verb!~"^(?:CONNECT|WATCH)$"}[5m])) by (verb, resource, subresource, le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: apiserver
+        annotations:
+          summary: "Kubernetes API server latency is high"
+          description: "99th percentile latency for {{ $labels.verb }} {{ $labels.resource }} requests is {{ $value }}s"
+
+      # API Server 错误率过高
+      - alert: KubernetesAPIServerErrorsHigh
+        expr: sum(rate(apiserver_request_total{code=~"^(?:5..)$"}[5m])) by (instance, job) / sum(rate(apiserver_request_total[5m])) by (instance, job) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          category: apiserver
+        annotations:
+          summary: "Kubernetes API server error rate is high"
+          description: "API server error rate is {{ $value }}% for {{ $labels.instance }}"
+
+  # etcd 相关告警
+  - name: kubernetes-etcd
+    interval: 30s
+    rules:
+      # etcd 实例不可用
+      - alert: EtcdInstanceDown
+        expr: up{job="etcd"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: etcd
+        annotations:
+          summary: "etcd instance {{ $labels.instance }} is down"
+          description: "etcd instance {{ $labels.instance }} has been down for more than 1 minute"
+
+      # etcd 请求延迟过高
+      - alert: EtcdHighRequestLatency
+        expr: histogram_quantile(0.99, rate(etcd_request_duration_seconds_bucket[5m])) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          category: etcd
+        annotations:
+          summary: "etcd high request latency"
+          description: "etcd 99th percentile request latency is {{ $value }}s"
+
+  # 资源配额相关告警
+  - name: kubernetes-resources
+    interval: 30s
+    rules:
+      # 命名空间 CPU 配额使用率过高
+      - alert: KubernetesNamespaceCPUQuotaExceeded
+        expr: (kube_resourcequota{resource="requests.cpu", type="used"} / kube_resourcequota{resource="requests.cpu", type="hard"}) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: quota
+        annotations:
+          summary: "Namespace {{ $labels.namespace }} CPU quota usage is high"
+          description: "Namespace {{ $labels.namespace }} CPU quota usage is {{ $value }}%"
+
+      # 命名空间内存配额使用率过高
+      - alert: KubernetesNamespaceMemoryQuotaExceeded
+        expr: (kube_resourcequota{resource="requests.memory", type="used"} / kube_resourcequota{resource="requests.memory", type="hard"}) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: quota
+        annotations:
+          summary: "Namespace {{ $labels.namespace }} memory quota usage is high"
+          description: "Namespace {{ $labels.namespace }} memory quota usage is {{ $value }}%"
