@@ -388,9 +388,6 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 1. [故障排查指南](TROUBLESHOOTING.md) - 常见问题的诊断和解决方案
 2. [运维手册](docs/OPERATIONS_MANUAL.md) - 日常运维操作指导
 3. [API文档](docs/API_REFERENCE.md) - 接口使用说明
-4. [GitHub Issues](https://github.com/your-org/microservices-k8s/issues)
-5. [项目Wiki](https://github.com/your-org/microservices-k8s/wiki)
-
 ---
 
 **⭐ 如果这个项目对你有帮助，请给个Star支持！**

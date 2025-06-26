@@ -110,6 +110,9 @@ tasks.json
 tasks/
 .taskmaster/
 
+# Serena 相关文件
+.serena/
+
 # 测试覆盖率报告
 coverage/
 .nyc_output/

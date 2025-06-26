@@ -1,0 +1,75 @@
+# Telemetry v2 配置
+# 配置指标、日志和追踪的收集
+
+---
+# 启用访问日志
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: access-logging
+  namespace: istio-system
+spec:
+  accessLogging:
+  - providers:
+    - name: envoy
+
+---
+# 自定义指标配置
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: custom-metrics
+  namespace: istio-system
+spec:
+  metrics:
+  - providers:
+    - name: prometheus
+  - overrides:
+    - match:
+        metric: ALL_METRICS
+      tagOverrides:
+        request_id:
+          value: "%{REQUEST_ID}"
+        user_agent:
+          value: "%{USER_AGENT}"
+
+---
+# 分布式追踪配置
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: tracing
+  namespace: istio-system
+spec:
+  tracing:
+  - providers:
+    - name: jaeger
+  - customTags:
+      user_id:
+        header:
+          name: "end-user"
+      request_size:
+        header:
+          name: "content-length"
+
+---
+# 为特定服务配置详细日志
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: bookinfo-logging
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: productpage
+  accessLogging:
+  - providers:
+    - name: envoy
+  - format:
+      text: |
+        [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%"
+        %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT%
+        %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%"
+        "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
+        user_id="%REQ(END-USER)%"

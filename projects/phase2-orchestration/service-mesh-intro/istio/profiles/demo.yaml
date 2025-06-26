@@ -1,0 +1,210 @@
+# Istio Demo 配置文件
+# 适用于学习和演示环境，包含完整功能
+
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: demo-profile
+spec:
+  # 使用 demo 配置文件
+  values:
+    defaultRevision: default
+    
+    # 全局配置
+    global:
+      # 代理配置
+      proxy:
+        # 资源限制
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        # 日志级别
+        logLevel: warning
+        
+        # 并发连接数
+        concurrency: 2
+        
+        # 访问日志格式
+        accessLogFormat: |
+          [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%"
+          %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT%
+          %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%"
+          "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
+          %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS%
+          %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME%
+      
+      # 网格配置
+      meshConfig:
+        # 默认配置
+        defaultConfig:
+          # 代理统计配置
+          proxyStatsMatcher:
+            inclusionRegexps:
+            - ".*outlier_detection.*"
+            - ".*circuit_breakers.*"
+            - ".*upstream_rq_retry.*"
+            - ".*_cx_.*"
+            exclusionRegexps:
+            - ".*osconfig.*"
+        
+        # 扩展提供者
+        extensionProviders:
+        - name: prometheus
+          prometheus: {}
+        - name: jaeger
+          envoyOtelAls:
+            service: jaeger.istio-system.svc.cluster.local
+            port: 14250
+        
+        # 默认提供者
+        defaultProviders:
+          metrics:
+          - prometheus
+          tracing:
+          - jaeger
+          accessLogging:
+          - envoy
+      
+      # 镜像配置
+      hub: docker.io/istio
+      tag: 1.20.0
+      
+      # 网络配置
+      network: ""
+      
+      # 多集群配置
+      meshID: mesh1
+      clusterName: cluster1
+      
+      # 日志配置
+      logging:
+        level: "default:info"
+  
+  # 组件配置
+  components:
+    # Pilot 配置
+    pilot:
+      k8s:
+        # 资源配置
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        # 环境变量
+        env:
+        - name: PILOT_TRACE_SAMPLING
+          value: "100"
+        - name: PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION
+          value: "true"
+        - name: PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY
+          value: "true"
+        
+        # 副本数
+        replicaCount: 1
+        
+        # 节点选择器
+        nodeSelector: {}
+        
+        # 容忍度
+        tolerations: []
+        
+        # 亲和性
+        affinity: {}
+    
+    # Ingress Gateway 配置
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        # 服务配置
+        service:
+          type: LoadBalancer
+          ports:
+          - port: 15021
+            targetPort: 15021
+            name: status-port
+            protocol: TCP
+          - port: 80
+            targetPort: 8080
+            name: http2
+            protocol: TCP
+          - port: 443
+            targetPort: 8443
+            name: https
+            protocol: TCP
+          - port: 31400
+            targetPort: 31400
+            name: tcp
+            protocol: TCP
+          - port: 15443
+            targetPort: 15443
+            name: tls
+            protocol: TCP
+        
+        # 资源配置
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        # 副本数
+        replicaCount: 1
+        
+        # HPA 配置
+        hpaSpec:
+          maxReplicas: 3
+          minReplicas: 1
+          scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: istio-ingressgateway
+          metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 80
+    
+    # Egress Gateway 配置
+    egressGateways:
+    - name: istio-egressgateway
+      enabled: false
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  
+  # 附加组件配置
+  addonComponents:
+    # Prometheus
+    prometheus:
+      enabled: false
+    
+    # Grafana
+    grafana:
+      enabled: false
+    
+    # Jaeger
+    jaeger:
+      enabled: false
+    
+    # Kiali
+    kiali:
+      enabled: false

@@ -1,0 +1,16 @@
+# 将所有流量路由到 v3 版本
+# 完成金丝雀部署，所有流量切换到新版本
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: reviews
+spec:
+  hosts:
+  - reviews
+  http:
+  - route:
+    - destination:
+        host: reviews
+        subset: v3

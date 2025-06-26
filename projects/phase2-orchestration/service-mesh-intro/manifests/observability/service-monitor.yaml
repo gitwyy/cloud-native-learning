@@ -1,0 +1,59 @@
+# Prometheus ServiceMonitor 配置
+# 用于 Prometheus Operator 环境
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-proxy
+  namespace: istio-system
+  labels:
+    app: istio-proxy
+spec:
+  selector:
+    matchExpressions:
+    - key: app
+      operator: Exists
+  endpoints:
+  - port: http-monitoring
+    interval: 15s
+    path: /stats/prometheus
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod_name
+    - sourceLabels: [__meta_kubernetes_pod_container_name]
+      targetLabel: container_name
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-mesh
+  namespace: istio-system
+  labels:
+    app: istio-mesh
+spec:
+  selector:
+    matchLabels:
+      app: istiod
+  endpoints:
+  - port: http-monitoring
+    interval: 15s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-gateway
+  namespace: istio-system
+  labels:
+    app: istio-gateway
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  endpoints:
+  - port: http-monitoring
+    interval: 15s
+    path: /stats/prometheus

@@ -44,7 +44,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/your-username/cloud-native-learning-roadmap.git
+   git clone https://github.com/gitwyy/cloud-native-learning.git
    cd cloud-native-learning-roadmap
    ```
 

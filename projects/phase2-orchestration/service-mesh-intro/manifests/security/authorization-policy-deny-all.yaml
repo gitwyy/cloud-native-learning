@@ -1,0 +1,11 @@
+# 拒绝所有访问策略
+# 默认拒绝所有请求，需要明确授权
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: default
+spec:
+  # 空规则表示拒绝所有请求
