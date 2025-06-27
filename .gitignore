@@ -102,9 +102,6 @@ ssl/
 
 # 监控和日志
 
-
-elasticsearch/
-
 # Task Master 相关文件
 tasks.json
 tasks/

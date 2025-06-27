@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-config
+  namespace: logging
+  labels:
+    app: kibana
+data:
+  kibana.yml: |
+    server.name: kibana
+    server.host: "0.0.0.0"
+    server.port: 5601
+    
+    elasticsearch.hosts: ["http://10.244.0.42:9200"]
+    elasticsearch.pingTimeout: 1500
+    elasticsearch.requestTimeout: 30000
+    
+    # 监控配置
+    monitoring.ui.container.elasticsearch.enabled: true
+    
+    # 安全配置
+    xpack.security.enabled: false
+    xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long"
+    
+    # 日志配置
+    logging.appenders:
+      file:
+        type: file
+        fileName: /usr/share/kibana/logs/kibana.log
+        layout:
+          type: json
+    logging.root:
+      appenders:
+        - default
+        - file
+      level: info
+    
+    # UI 配置
+    i18n.locale: "en"
+    
+    # 索引模式配置
+    kibana.index: ".kibana"
+    kibana.defaultAppId: "discover"
+    
+    # 数据视图配置
+    data.search.aggs.shardDelay.enabled: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+      - name: kibana
+        image: docker.elastic.co/kibana/kibana:8.11.0
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: ELASTICSEARCH_HOSTS
+          value: "http://10.244.0.42:9200"
+        - name: SERVER_NAME
+          value: "kibana"
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: XPACK_SECURITY_ENABLED
+          value: "false"
+        - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+          value: "something_at_least_32_characters_long"
+        ports:
+        - containerPort: 5601
+          name: ui
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /usr/share/kibana/config/kibana.yml
+          subPath: kibana.yml
+        - name: data
+          mountPath: /usr/share/kibana/data
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30
+          timeoutSeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 60
+          timeoutSeconds: 10
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: kibana-config
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5601
+    targetPort: ui
+    protocol: TCP
+    name: ui
+  selector:
+    app: kibana
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana-nodeport
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  type: NodePort
+  ports:
+  - port: 5601
+    targetPort: ui
+    nodePort: 30561
+    protocol: TCP
+    name: ui
+  selector:
+    app: kibana
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-dashboards
+  namespace: logging
+  labels:
+    app: kibana
+data:
+  kubernetes-logs-dashboard.json: |
+    {
+      "version": "8.11.0",
+      "objects": [
+        {
+          "id": "kubernetes-logs-overview",
+          "type": "dashboard",
+          "attributes": {
+            "title": "Kubernetes Logs Overview",
+            "description": "Overview of Kubernetes cluster logs",
+            "panelsJSON": "[{\"version\":\"8.11.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"}]",
+            "timeRestore": false,
+            "timeTo": "now",
+            "timeFrom": "now-15m",
+            "refreshInterval": {
+              "pause": false,
+              "value": 10000
+            },
+            "kibanaSavedObjectMeta": {
+              "searchSourceJSON": "{\"query\":{\"match_all\":{}},\"filter\":[]}"
+            }
+          }
+        }
+      ]
+    }
+  
+  application-logs-dashboard.json: |
+    {
+      "version": "8.11.0",
+      "objects": [
+        {
+          "id": "application-logs-analysis",
+          "type": "dashboard",
+          "attributes": {
+            "title": "Application Logs Analysis",
+            "description": "Detailed analysis of application logs",
+            "panelsJSON": "[{\"version\":\"8.11.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":48,\"h\":20,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"}]",
+            "timeRestore": false,
+            "timeTo": "now",
+            "timeFrom": "now-1h",
+            "refreshInterval": {
+              "pause": false,
+              "value": 30000
+            },
+            "kibanaSavedObjectMeta": {
+              "searchSourceJSON": "{\"query\":{\"match_all\":{}},\"filter\":[]}"
+            }
+          }
+        }
+      ]
+    }

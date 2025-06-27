@@ -1,0 +1,6 @@
+Flask==3.0.0
+requests==2.31.0
+jaeger-client==4.8.0
+opentracing==2.4.0
+Werkzeug==3.0.1
+six==1.16.0
