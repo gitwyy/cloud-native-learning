@@ -1,0 +1,110 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: sample-app-project
+  namespace: argocd
+  labels:
+    project: sample-app
+spec:
+  description: Sample application project for CI/CD learning
+  
+  # 源仓库配置
+  sourceRepos:
+    - 'https://github.com/your-org/cloud-native-learning'
+    - 'https://charts.helm.sh/stable'
+    - 'https://kubernetes-charts.storage.googleapis.com'
+  
+  # 目标集群和命名空间
+  destinations:
+    - namespace: staging
+      server: https://kubernetes.default.svc
+    - namespace: production
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  
+  # 集群资源白名单
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+  
+  # 命名空间资源白名单
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: ReplicaSet
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+  
+  # 角色配置
+  roles:
+    # 开发者角色 - 只能查看和同步staging环境
+    - name: developer
+      description: Developer role with staging access
+      policies:
+        - p, proj:sample-app-project:developer, applications, get, sample-app-project/*, allow
+        - p, proj:sample-app-project:developer, applications, sync, sample-app-project/sample-app-staging, allow
+        - p, proj:sample-app-project:developer, logs, get, sample-app-project/*, allow
+        - p, proj:sample-app-project:developer, exec, create, sample-app-project/sample-app-staging, deny
+      groups:
+        - developers
+    
+    # 运维角色 - 可以管理所有环境
+    - name: ops
+      description: Operations role with full access
+      policies:
+        - p, proj:sample-app-project:ops, applications, *, sample-app-project/*, allow
+        - p, proj:sample-app-project:ops, logs, get, sample-app-project/*, allow
+        - p, proj:sample-app-project:ops, exec, create, sample-app-project/*, allow
+      groups:
+        - ops-team
+    
+    # 只读角色 - 只能查看
+    - name: readonly
+      description: Read-only access to all applications
+      policies:
+        - p, proj:sample-app-project:readonly, applications, get, sample-app-project/*, allow
+        - p, proj:sample-app-project:readonly, logs, get, sample-app-project/*, allow
+      groups:
+        - readonly-users
+
+  # 同步窗口配置
+  syncWindows:
+    # 生产环境维护窗口
+    - kind: deny
+      schedule: '0 2 * * 1-5'  # 工作日凌晨2点禁止同步
+      duration: 2h
+      applications:
+        - sample-app-production
+      manualSync: false
+    
+    # 允许的部署窗口
+    - kind: allow
+      schedule: '0 9-17 * * 1-5'  # 工作日9-17点允许部署
+      duration: 8h
+      applications:
+        - '*'
+      manualSync: true
+
+  # 签名密钥（用于验证提交签名）
+  signatureKeys:
+    - keyID: ABCDEF1234567890
