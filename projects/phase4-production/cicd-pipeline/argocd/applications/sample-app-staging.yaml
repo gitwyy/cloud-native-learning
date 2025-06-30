@@ -11,12 +11,9 @@ metadata:
 spec:
   project: sample-app-project
   source:
-    repoURL: https://github.com/your-org/cloud-native-learning
+    repoURL: https://github.com/gitwyy/cloud-native-learning
     targetRevision: HEAD
     path: projects/phase4-production/cicd-pipeline/sample-app/k8s
-    helm:
-      valueFiles:
-        - values-staging.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: staging
@@ -55,12 +52,9 @@ metadata:
 spec:
   project: sample-app-project
   source:
-    repoURL: https://github.com/your-org/cloud-native-learning
+    repoURL: https://github.com/gitwyy/cloud-native-learning
     targetRevision: HEAD
     path: projects/phase4-production/cicd-pipeline/sample-app/k8s
-    helm:
-      valueFiles:
-        - values-production.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: production

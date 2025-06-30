@@ -10,7 +10,7 @@ spec:
   
   # 源仓库配置
   sourceRepos:
-    - 'https://github.com/your-org/cloud-native-learning'
+    - 'https://github.com/gitwyy/cloud-native-learning'
     - 'https://charts.helm.sh/stable'
     - 'https://kubernetes-charts.storage.googleapis.com'
   

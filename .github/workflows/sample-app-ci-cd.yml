@@ -10,6 +10,7 @@ on:
     branches: [ main ]
     paths:
       - 'projects/phase4-production/cicd-pipeline/sample-app/**'
+  workflow_dispatch:  # 允许手动触发
 
 env:
   REGISTRY: ghcr.io
@@ -33,7 +34,9 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-    
+        cache: 'npm'
+        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+
     - name: Install dependencies
       run: |
         cd ${{ env.APP_PATH }}
@@ -55,7 +58,7 @@ jobs:
       run: |
         cd ${{ env.APP_PATH }}
         npm run test:coverage || npm test
-    
+
     - name: Upload coverage reports
       if: matrix.node-version == 18
       uses: codecov/codecov-action@v3
@@ -64,6 +67,13 @@ jobs:
         flags: unittests
         name: codecov-umbrella
       continue-on-error: true
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.node-version }}
+        path: ${{ env.APP_PATH }}/coverage/
 
   # 安全扫描作业
   security:
@@ -79,6 +89,8 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
     
     - name: Install dependencies
       run: |
@@ -95,15 +107,17 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: [test, security]
-    if: github.ref == 'refs/heads/main'
-    
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
     permissions:
       contents: read
       packages: write
-    
+      id-token: write  # 为OIDC添加权限
+
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.tags }}
+      image-url: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
     
     steps:
     - name: Checkout code
@@ -118,6 +132,15 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Debug build context
+      run: |
+        echo "Building from path: ${{ env.APP_PATH }}"
+        ls -la ${{ env.APP_PATH }}/
+        echo "Current directory:"
+        pwd
+        echo "Docker version:"
+        docker --version
     
     - name: Extract metadata
       id: meta
@@ -135,11 +158,13 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: ./${{ env.APP_PATH }}
+        file: ./${{ env.APP_PATH }}/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        platforms: linux/amd64  # 明确指定平台
     
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -148,13 +173,20 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
       continue-on-error: true
-    
+
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v2
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
       continue-on-error: true
+
+    - name: Image build summary
+      run: |
+        echo "✅ Docker image built and pushed successfully!"
+        echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        echo "🏷️ Tags: ${{ steps.meta.outputs.tags }}"
+        echo "📋 Digest: ${{ steps.build.outputs.digest }}"
 
   # 部署到测试环境（如果有Kubernetes集群）
   deploy-test:

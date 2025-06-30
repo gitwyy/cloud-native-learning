@@ -2,6 +2,11 @@ const request = require('supertest');
 const app = require('../src/app');
 
 describe('Sample CI/CD App', () => {
+
+  afterAll(async () => {
+    // 给Jest一些时间来清理
+    await new Promise(resolve => setTimeout(() => resolve(), 100));
+  });
   
   describe('GET /', () => {
     it('should return welcome message with app info', async () => {

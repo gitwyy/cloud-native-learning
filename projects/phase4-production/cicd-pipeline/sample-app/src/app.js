@@ -95,6 +95,12 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+const server = app.listen(port, () => {
+  console.log(`🚀 App listening on port ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Version: ${process.env.APP_VERSION || '1.0.0'}`);
+});
+
 // 优雅关闭处理
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
@@ -103,10 +109,11 @@ process.on('SIGTERM', () => {
   });
 });
 
-const server = app.listen(port, () => {
-  console.log(`🚀 App listening on port ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Version: ${process.env.APP_VERSION || '1.0.0'}`);
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+  });
 });
 
 module.exports = app;
