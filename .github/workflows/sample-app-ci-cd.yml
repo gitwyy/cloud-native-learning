@@ -1,0 +1,209 @@
+name: Sample App CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'projects/phase4-production/cicd-pipeline/sample-app/**'
+      - '.github/workflows/sample-app-ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'projects/phase4-production/cicd-pipeline/sample-app/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/sample-app
+  NODE_VERSION: '18'
+  APP_PATH: projects/phase4-production/cicd-pipeline/sample-app
+
+jobs:
+  # 测试作业
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm ci
+    
+    - name: Run linting (if available)
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm run lint || echo "No linting script found, skipping..."
+      continue-on-error: true
+    
+    - name: Run tests
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm test
+    
+    - name: Run test coverage
+      if: matrix.node-version == 18
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm run test:coverage || npm test
+    
+    - name: Upload coverage reports
+      if: matrix.node-version == 18
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./${{ env.APP_PATH }}/coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+      continue-on-error: true
+
+  # 安全扫描作业
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm ci
+    
+    - name: Run security audit
+      run: |
+        cd ${{ env.APP_PATH }}
+        npm audit --audit-level=high
+      continue-on-error: true
+
+  # 构建和推送镜像
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ env.APP_PATH }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
+
+  # 部署到测试环境（如果有Kubernetes集群）
+  deploy-test:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: test
+      url: http://test.sample-app.local
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy notification
+      run: |
+        echo "🚀 Ready to deploy to test environment!"
+        echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+        echo "To complete the deployment, you would need to:"
+        echo "1. Configure KUBECONFIG secret in GitHub repository settings"
+        echo "2. Set up kubectl in the workflow"
+        echo "3. Apply Kubernetes manifests"
+        echo ""
+        echo "For now, this is a simulation step."
+
+  # 生产部署（手动触发）
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-test]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: http://sample-app.local
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Production deployment notification
+      run: |
+        echo "🎉 Ready for production deployment!"
+        echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+        echo "This step requires manual approval in GitHub Actions."
+        echo "In a real scenario, this would deploy to production Kubernetes cluster."
