@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: sample-app:latest  # 这将被CI/CD流水线替换
+        image: ghcr.io/gitwyy/cloud-native-learning/sample-app:latest
         ports:
         - containerPort: 3000
           name: http
