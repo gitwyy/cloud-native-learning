@@ -24,7 +24,6 @@ htmlcov/
 .tox/
 .cache
 .hypothesis/
-package-lock.json
 
 # 环境变量和配置文件
 .env

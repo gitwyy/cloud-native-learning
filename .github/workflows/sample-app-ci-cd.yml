@@ -35,7 +35,7 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+        cache-dependency-path: '${{ env.APP_PATH }}/package-lock.json'
 
     - name: Install dependencies
       run: |
@@ -57,10 +57,11 @@ jobs:
       if: matrix.node-version == 18
       run: |
         cd ${{ env.APP_PATH }}
-        npm run test:coverage || npm test
+        npm run test:coverage
+        ls -la coverage/ || echo "No coverage directory found"
 
     - name: Upload coverage reports
-      if: matrix.node-version == 18
+      if: matrix.node-version == 18 && hashFiles('${{ env.APP_PATH }}/coverage/lcov.info') != ''
       uses: codecov/codecov-action@v4
       with:
         file: ./${{ env.APP_PATH }}/coverage/lcov.info
@@ -69,7 +70,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload test results
-      if: always()
+      if: always() && hashFiles('${{ env.APP_PATH }}/coverage/**') != ''
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.node-version }}
@@ -90,7 +91,7 @@ jobs:
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+        cache-dependency-path: '${{ env.APP_PATH }}/package-lock.json'
     
     - name: Install dependencies
       run: |
