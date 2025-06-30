@@ -14,11 +14,12 @@ app.use((req, res, next) => {
 // 根路径
 app.get('/', (req, res) => {
   res.json({
-    message: 'Hello from GitHub Actions CI/CD Pipeline! 🚀',
-    version: process.env.APP_VERSION || '1.0.0',
+    message: 'Hello from ArgoCD GitOps Pipeline! 🚀✨',
+    version: process.env.APP_VERSION || '1.0.1',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
-    hostname: require('os').hostname()
+    hostname: require('os').hostname(),
+    gitops: 'ArgoCD自动部署成功！'
   });
 });
 
