@@ -61,7 +61,7 @@ jobs:
 
     - name: Upload coverage reports
       if: matrix.node-version == 18
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./${{ env.APP_PATH }}/coverage/lcov.info
         flags: unittests
@@ -70,7 +70,7 @@ jobs:
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.node-version }}
         path: ${{ env.APP_PATH }}/coverage/
@@ -175,7 +175,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'

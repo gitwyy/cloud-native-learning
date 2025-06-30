@@ -95,25 +95,28 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-const server = app.listen(port, () => {
-  console.log(`🚀 App listening on port ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Version: ${process.env.APP_VERSION || '1.0.0'}`);
-});
-
-// 优雅关闭处理
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
+// 只在非测试环境中启动服务器
+if (process.env.NODE_ENV !== 'test') {
+  const server = app.listen(port, () => {
+    console.log(`🚀 App listening on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Version: ${process.env.APP_VERSION || '1.0.0'}`);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
+  // 优雅关闭处理
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
   });
-});
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
+}
 
 module.exports = app;
