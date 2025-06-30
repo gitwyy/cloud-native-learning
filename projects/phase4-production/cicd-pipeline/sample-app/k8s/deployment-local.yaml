@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: sample-app:local
+        image: sample-app:local-v2
         imagePullPolicy: Never  # 使用本地镜像，不从远程拉取
         ports:
         - containerPort: 3000
@@ -27,7 +27,7 @@ spec:
         - name: NODE_ENV
           value: "production"
         - name: APP_VERSION
-          value: "1.0.0-local"
+          value: "1.0.1-local"
         - name: PORT
           value: "3000"
         resources:
