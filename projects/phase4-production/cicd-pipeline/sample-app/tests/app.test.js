@@ -12,7 +12,7 @@ describe('Sample CI/CD App', () => {
       expect(response.body).toHaveProperty('version');
       expect(response.body).toHaveProperty('timestamp');
       expect(response.body).toHaveProperty('hostname');
-      expect(response.body.message).toContain('Hello from CI/CD Pipeline!');
+      expect(response.body.message).toContain('Hello from GitHub Actions CI/CD Pipeline!');
     });
   });
 
