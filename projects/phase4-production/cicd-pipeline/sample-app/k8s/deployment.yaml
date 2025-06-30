@@ -19,6 +19,7 @@ spec:
       containers:
       - name: sample-app
         image: ghcr.io/gitwyy/cloud-native-learning/sample-app:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
           name: http
